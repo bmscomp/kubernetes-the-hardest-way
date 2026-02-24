@@ -84,15 +84,34 @@ PID_GAMMA=$!
 
 echo "  Nodes booting in background ($PID_ALPHA, $PID_SIGMA, $PID_GAMMA)"
 
+step "6/8" "Waiting for cluster readiness..."
+"$SCRIPT_DIR/wait-for-cluster.sh"
+
+step "7/8" "Installing Cilium CNI + RBAC + node labels..."
+export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
+"$SCRIPT_DIR/install-cilium.sh"
+
+echo "  Waiting for Cilium to be ready..."
+sleep 10
+until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
+  sleep 5
+done
+echo -e "\e[32m  Nodes are Ready.\e[0m"
+
+step "8/8" "Deploying CoreDNS..."
+"$SCRIPT_DIR/deploy-coredns.sh"
+
 echo ""
 echo "======================================================================="
-echo -e " \e[32m✔ All nodes installed and booting!\e[0m"
+echo -e " \e[32m✔ Cluster is fully operational!\e[0m"
 echo "======================================================================="
 echo ""
-echo "  Next steps:"
-echo "    make wait       # Live dashboard to monitor cluster readiness"
-echo "    make network    # Install Cilium CNI"
-echo "    make smoke      # Verify with nginx deployment"
+echo "  Verify:"
+echo "    kubectl get nodes"
+echo "    kubectl get pods -A"
+echo "    make smoke      # Deploy nginx test"
+echo "    make metrics    # (optional) Enable kubectl top"
+echo "    make snapshot   # Save this working state"
 echo ""
 echo "  export KUBECONFIG=$PROJECT_DIR/configs/admin.kubeconfig"
 echo ""
