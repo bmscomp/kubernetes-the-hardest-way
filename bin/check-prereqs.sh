@@ -12,23 +12,28 @@ B="\e[1m"
 C="\e[36m"
 N="\e[0m"
 
+STATUS_W=3
 NAME_W=14
-VER_W=$((COLS - NAME_W - 12))  # 12 = status(4) + separators(8)
+SEP_OVERHEAD=13  # 2 indent + 3 pipes + 4 spaces + 4 padding
+VER_W=$((COLS - STATUS_W - NAME_W - SEP_OVERHEAD))
+[ "$VER_W" -lt 20 ] && VER_W=20
+LINE_W=$((STATUS_W + NAME_W + VER_W + 8))  # inner width
 
 hline() {
-  local left=$1 mid=$2 right=$3
-  printf "  ${D}%s" "$left"
-  printf '%.0s─' $(seq 1 5)
-  printf "%s" "$mid"
-  printf '%.0s─' $(seq 1 $((NAME_W + 2)))
-  printf "%s" "$mid"
-  printf '%.0s─' $(seq 1 $((VER_W + 2)))
-  printf "%s${N}\n" "$right"
+  local left=$1 t1=$2 t2=$3 right=$4
+  local seg1="" seg2="" seg3=""
+  seg1=$(printf '%*s' $((STATUS_W + 2)) '' | tr ' ' '─')
+  seg2=$(printf '%*s' $((NAME_W + 2)) '' | tr ' ' '─')
+  seg3=$(printf '%*s' $((VER_W + 2)) '' | tr ' ' '─')
+  echo -e "  ${D}${left}${seg1}${t1}${seg2}${t2}${seg3}${right}${N}"
 }
 
 row() {
-  local icon=$1 name=$2 value=$3
-  printf "  ${D}│${N} %b ${D}│${N} ${B}%-${NAME_W}s${N} ${D}│${N} %-${VER_W}s ${D}│${N}\n" "$icon" "$name" "$value"
+  local color=$1 icon=$2 name=$3 value=$4
+  printf "  ${D}│${N} ${color}${icon}${N}%-*s${D}│${N} ${B}%-*s${N}${D}│${N} %s\n" \
+    $((STATUS_W - 1)) "" \
+    "$NAME_W" "$name" \
+    "$value"
 }
 
 check() {
@@ -43,17 +48,17 @@ check() {
     else
       ver="installed"
     fi
-    row "${G}✔${N}" "$name" "$ver"
+    row "$G" "✔" "$name" "$ver"
   else
-    row "${R}✘${N}" "$name" "$(echo -e "${R}NOT FOUND${N}")"
+    row "$R" "✘" "$name" "$(echo -e "${R}NOT FOUND${N}")"
     FAILED=1
   fi
 }
 
 echo ""
-printf "  ${C}${B}☸ Checking prerequisites${N}\n"
+echo -e "  ${C}${B}☸ Checking prerequisites${N}"
 echo ""
-hline "┌" "┬" "┐"
+hline "┌" "┬" "┬" "┐"
 
 check "qemu" "qemu-system-$(uname -m | sed 's/arm64/aarch64/')" \
   "qemu-system-$(uname -m | sed 's/arm64/aarch64/') --version | head -1 | sed 's/QEMU emulator version //'"
@@ -76,26 +81,26 @@ check "base64" "base64" \
 check "tar" "tar" \
   "tar --version 2>&1 | head -1 | sed 's/bsdtar //' | awk '{print \$1}'"
 
-hline "├" "┼" "┤"
+hline "├" "┼" "┼" "┤"
 
 if [ -f "/opt/homebrew/share/qemu/edk2-aarch64-code.fd" ] || \
    [ -f "/usr/share/OVMF/OVMF_CODE.fd" ] || \
    [ -f "/usr/share/qemu/edk2-aarch64-code.fd" ]; then
-  row "${G}✔${N}" "UEFI" "firmware found"
+  row "$G" "✔" "UEFI" "firmware found"
 else
-  row "${R}✘${N}" "UEFI" "$(echo -e "${R}NOT FOUND — install qemu with UEFI${N}")"
+  row "$R" "✘" "UEFI" "$(echo -e "${R}NOT FOUND — install qemu with UEFI${N}")"
   FAILED=1
 fi
 
 TOTAL_RAM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{printf "%.0f", $1/1073741824}' || free -g 2>/dev/null | awk '/^Mem:/{print $2}' || echo "?")
 
 if [ "$TOTAL_RAM_GB" -ge 24 ] 2>/dev/null; then
-  row "${G}✔${N}" "RAM" "${TOTAL_RAM_GB} GB (needs ~24 GB)"
+  row "$G" "✔" "RAM" "${TOTAL_RAM_GB} GB (needs ~24 GB)"
 else
-  row "${Y}⚠${N}" "RAM" "$(echo -e "${Y}${TOTAL_RAM_GB} GB — may be tight (needs ~24 GB)${N}")"
+  row "$Y" "⚠" "RAM" "$(echo -e "${Y}${TOTAL_RAM_GB} GB — may be tight (needs ~24 GB)${N}")"
 fi
 
-hline "└" "┴" "┘"
+hline "└" "┴" "┴" "┘"
 echo ""
 
 if [ "$FAILED" -ne 0 ]; then
