@@ -1,79 +1,119 @@
 # Kubernetes The Hardest Way
 
-Deploy a Kubernetes cluster from scratch using QEMU virtual machines and NixOS — the educational "Hard Way" approach, taken to its logical extreme.
+A fully automated, from-scratch Kubernetes cluster running on QEMU virtual machines with NixOS. This project takes Kelsey Hightower's original "Kubernetes The Hard Way" and pushes it further — every certificate is hand-generated, every component configured as a bare systemd service, and the entire thing runs on your laptop without touching a cloud provider.
 
-**Cluster Topology:**
-| Node | Role | SSH Port | API Port |
-|------|------|----------|----------|
-| alpha | Control Plane | 2222 | 6443 |
-| sigma | Worker | 2223 | — |
-| gamma | Worker | 2224 | — |
+The twist? It's actually reproducible. One command rebuilds everything from zero.
+
+## Why This Exists
+
+Most Kubernetes tutorials either hand you a managed cluster or stop at `kubeadm init`. This project strips away every abstraction:
+
+- No kubeadm. No Kubespray. No managed anything.
+- The control plane runs as raw systemd services — not pods.
+- PKI is generated with cfssl. Every certificate and kubeconfig is explicit.
+- Networking uses Cilium, deployed after the cluster is already running.
+- NixOS makes the entire system configuration declarative and reproducible.
+
+If you want to understand how Kubernetes actually works at the syscall level, this is the project.
+
+## Cluster Topology
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Host Machine (macOS)                 │
+│                                                         │
+│   ┌────────────┐   ┌───────────┐   ┌───────────┐        │
+│   │   alpha    │   │   sigma   │   │   gamma   │        │
+│   │  Control   │   │  Worker   │   │  Worker   │        │
+│   │   Plane    │   │           │   │           │        │
+│   │            │   │           │   │           │        │
+│   │ etcd       │   │ kubelet   │   │ kubelet   │        │
+│   │ apiserver  │   │ containerd│   │ containerd│        │
+│   │ scheduler  │   │ cilium    │   │ cilium    │        │
+│   │ ctrl-mgr   │   │           │   │           │        │
+│   │            │   │           │   │           │        │
+│   │ SSH: 2222  │   │ SSH: 2223 │   │ SSH: 2224 │        │
+│   │ API: 6443  │   │           │   │           │        │
+│   └────────────┘   └───────────┘   └───────────┘        │
+│       NixOS            NixOS            NixOS           │
+│       QEMU             QEMU             QEMU            │
+└─────────────────────────────────────────────────────────┘
+```
+
+| Node | Role | RAM | SSH | Notes |
+|------|------|-----|-----|-------|
+| alpha | Control Plane | 8 GB | `localhost:2222` | etcd, API server, scheduler, controller-manager |
+| sigma | Worker | 8 GB | `localhost:2223` | kubelet, containerd, Cilium agent |
+| gamma | Worker | 8 GB | `localhost:2224` | kubelet, containerd, Cilium agent |
 
 ## Prerequisites
 
-- `qemu` (with UEFI firmware for Apple Silicon)
-- `kubectl`
-- `expect`
-- `curl`
+You need four tools installed on the host:
+
+```bash
+brew install qemu kubectl expect curl
+```
+
+QEMU must include UEFI firmware (included automatically with Homebrew on Apple Silicon).
 
 ## Quick Start
 
-### 1. Download the NixOS Base Image
-```bash
-make download
-```
-
-### 2. Generate All PKI Assets and Seed ISOs
-```bash
-make prepare
-```
-
-### 3. Install NixOS on Each Node
-Open three separate terminals:
+The entire cluster — from downloading NixOS to running pods — is one command:
 
 ```bash
-make install-alpha    # Terminal 1
-make install-sigma    # Terminal 2
-make install-gamma    # Terminal 3
+make all
 ```
 
-The `expect` automation will partition the disk, install NixOS, inject the cluster configuration, and shut down each VM automatically.
+This runs `bootstrap-cluster.sh`, which:
+1. Downloads the NixOS minimal ISO (if not cached)
+2. Generates all PKI assets (CA, node certs, kubeconfigs, encryption config)
+3. Stages NixOS configurations per node
+4. Installs NixOS on three VMs **in parallel** via expect-automated Live CD
+5. Boots all three nodes in the background
 
-### 4. Boot the Installed Cluster
-After installation completes, boot the nodes:
+Once it finishes, follow the remaining steps:
 
 ```bash
-make boot-alpha    # Terminal 1
-make boot-sigma    # Terminal 2
-make boot-gamma    # Terminal 3
+make wait       # Live dashboard — watch until all components show Active
+make network    # Install Cilium CNI + RBAC for kubelet API access
+make smoke      # Deploy nginx, verify pods are running
 ```
 
-### 5. Monitor Boot Progress
-In a fourth terminal, watch the live dashboard:
+Then interact with the cluster:
 
-```bash
-make wait
-```
-
-### 6. Install Pod Networking
-Once all components show **Active/Registered** on the dashboard:
-
-```bash
-make network
-```
-
-### 7. Verify the Cluster
 ```bash
 export KUBECONFIG=configs/admin.kubeconfig
 kubectl get nodes
+kubectl get pods -A
 ```
 
-### 8. Run the Smoke Test
+## Day-Two Operations
+
+### Snapshot & Restore
+
+After you have a working cluster, save it:
+
 ```bash
-make smoke
+make snapshot    # Takes ~2 seconds
 ```
 
-## SSH Access
+Later, reset the cluster to that saved state instantly:
+
+```bash
+make restore     # ~30 seconds (vs ~15 minutes for full rebuild)
+```
+
+This is the fastest way to iterate — break something, restore, try again.
+
+### Push Config Changes Without Reinstalling
+
+Changed a kubelet flag or updated a certificate? Don't rebuild:
+
+```bash
+make reconfig    # SSH into each node, push new configs, restart services
+```
+
+### SSH Access
 
 ```bash
 make ssh-alpha   # Control plane
@@ -81,15 +121,88 @@ make ssh-sigma   # Worker 1
 make ssh-gamma   # Worker 2
 ```
 
-## Configuration
-
-All cluster parameters are centralized in `cluster.env`. Edit this file to change node names, memory, IPs, or versions.
-
-## Cleanup
+### Full Reset
 
 ```bash
-make clean     # Remove generated certs, configs, ISOs
-make clobber   # Also remove disk images (full reset)
+make clean       # Remove generated certs, configs, ISOs
+make clobber     # Also delete disk images — true clean slate
 ```
 
-Run `make help` to see all available targets.
+## Smart Defaults & Optimizations
+
+The build system is designed to avoid unnecessary work:
+
+- **Idempotent PKI**: `make pki` skips regeneration if certs already exist. Pass `--force` to override.
+- **Smart bootstrap**: `make all` detects existing disk images and skips the install phase — just reboots.
+- **Parallel installation**: All three nodes install simultaneously, cutting build time by ~3x.
+
+## Configuration
+
+All cluster parameters live in `cluster.env`:
+
+```bash
+CONTROL_PLANE_MEM=8192     # RAM per node (MB)
+WORKER_MEM=8192
+K8S_SERVICE_CIDR=10.32.0.0/24
+K8S_POD_CIDR=10.200.0.0/16
+CILIUM_VERSION=1.16.5
+```
+
+Edit this file and rebuild. The scripts read everything from here — no values are hardcoded in the shell scripts.
+
+## Project Layout
+
+```
+├── Makefile                    Orchestration layer
+├── cluster.env                 All tunable parameters
+├── configs/
+│   └── nixos-base.nix          Shared NixOS configuration
+├── bin/
+│   ├── bootstrap-cluster.sh    Full lifecycle: clean → install → boot
+│   ├── provision.sh            QEMU VM management (install + boot)
+│   ├── generate-certs.sh       PKI certificate generation (cfssl)
+│   ├── generate-kubeconfigs.sh Kubeconfig generation for all components
+│   ├── generate-nocloud-iso.sh NixOS configuration staging per node
+│   ├── install-cilium.sh       Cilium CNI + RBAC setup
+│   ├── wait-for-cluster.sh     Live boot dashboard
+│   ├── snapshot.sh             Save QCOW2 snapshots
+│   ├── restore.sh              Restore and reboot from snapshots
+│   └── reconfig.sh             Push config changes via SSH
+└── docs/
+    ├── architecture.md         System architecture deep dive
+    └── technical-choices.md    Why NixOS, QEMU, Cilium, and everything else
+```
+
+## Documentation
+
+For deeper reading on how this all fits together:
+
+- **[Architecture](docs/architecture.md)** — How the cluster is assembled, the boot sequence, networking model, and PKI trust chain.
+- **[Technical Choices](docs/technical-choices.md)** — The reasoning behind NixOS, QEMU user-mode networking, Cilium, cfssl, and the rest of the stack.
+
+## Targets Reference
+
+Run `make help` for the full list:
+
+```
+  all               Full reset: clean + PKI + install + boot + CNI
+  download          Download the minimal NixOS base image
+  pki               Generate all PKI assets
+  install           Install NixOS on all nodes sequentially
+  up                Boot all installed nodes
+  wait              Show a live dashboard while waiting for the cluster to boot
+  network           Install Cilium CNI for pod networking
+  smoke             Deploy nginx and verify pod networking
+  snapshot          Save cluster state for instant restore later
+  restore           Restore cluster from last snapshot (~30s vs ~15min rebuild)
+  reconfig          Push config changes to running nodes (no reinstall)
+  ssh-alpha         SSH into the Alpha control plane
+  ssh-sigma         SSH into the Sigma worker
+  ssh-gamma         SSH into the Gamma worker
+  clean             Remove generated TLS certs, configs, and staging dirs
+  clobber           Destroy everything including disk images (Caution!)
+```
+
+## License
+
+Educational project. Use it to learn. Break it. Rebuild it. That's the point.
