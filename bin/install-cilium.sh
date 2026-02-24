@@ -52,6 +52,18 @@ subjects:
 RBACEOF
 
 echo "Installing Cilium..."
-cilium install --version 1.16.5 --set k8sServiceHost=10.0.2.2 --set k8sServicePort=6443
 
+CILIUM_PROXY_ARGS=""
+if [ -n "${PROXY_HTTP:-}" ]; then
+  CILIUM_PROXY_ARGS="--set httpProxy=$PROXY_HTTP --set httpsProxy=${PROXY_HTTPS:-$PROXY_HTTP} --set noProxy=${PROXY_NO:-localhost}"
+fi
+
+cilium install --version 1.16.5 --set k8sServiceHost=10.0.2.2 --set k8sServicePort=6443 $CILIUM_PROXY_ARGS
+
+echo "Labeling worker nodes..."
+for worker in ${WORKER_NAMES:-sigma gamma}; do
+  kubectl label node "$worker" node-role.kubernetes.io/worker="" --overwrite 2>/dev/null || true
+done
+
+echo ""
 echo "Cilium installation initiated. Run 'cilium status' to monitor."

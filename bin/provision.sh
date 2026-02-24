@@ -184,7 +184,7 @@ send "head -15 /mnt/etc/nixos/configuration.nix\r"
 expect "root@nixos"
 
 set timeout 1800
-send "nixos-install --no-root-passwd\r"
+send "export HTTP_PROXY=${PROXY_HTTP:-} HTTPS_PROXY=${PROXY_HTTPS:-} NO_PROXY=${PROXY_NO:-} 2>/dev/null; nixos-install --no-root-passwd\r"
 expect "root@nixos"
 set timeout 600
 
@@ -204,7 +204,22 @@ expect eof
 EXPECTEOF
   chmod +x "$EXPECT_SCRIPT"
 
-  "$EXPECT_SCRIPT"
+  INSTALL_LOG="$IMAGE_DIR/${NODE_NAME}-install.log"
+  MAX_RETRIES=2
+  for attempt in $(seq 1 $MAX_RETRIES); do
+    echo "  Attempt $attempt/$MAX_RETRIES..."
+    if "$EXPECT_SCRIPT" 2>&1 | tee "$INSTALL_LOG"; then
+      break
+    fi
+    if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+      echo "  Install failed, retrying in 5s..."
+      sleep 5
+    else
+      echo "  Installation failed after $MAX_RETRIES attempts."
+      rm -f "$EXPECT_SCRIPT"
+      exit 1
+    fi
+  done
   rm -f "$EXPECT_SCRIPT"
 
   echo ""

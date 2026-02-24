@@ -159,18 +159,25 @@ Edit this file and rebuild. The scripts read everything from here — no values 
 │   └── nixos-base.nix          Shared NixOS configuration
 ├── bin/
 │   ├── bootstrap-cluster.sh    Full lifecycle: clean → install → boot
-│   ├── provision.sh            QEMU VM management (install + boot)
+│   ├── provision.sh            QEMU VM management (install + boot + retry)
 │   ├── generate-certs.sh       PKI certificate generation (cfssl)
 │   ├── generate-kubeconfigs.sh Kubeconfig generation for all components
 │   ├── generate-nocloud-iso.sh NixOS configuration staging per node
-│   ├── install-cilium.sh       Cilium CNI + RBAC setup
+│   ├── install-cilium.sh       Cilium CNI + RBAC + node labels
+│   ├── deploy-coredns.sh       CoreDNS for cluster DNS (10.32.0.10)
+│   ├── deploy-metrics-server.sh Metrics Server for kubectl top
 │   ├── wait-for-cluster.sh     Live boot dashboard
+│   ├── cluster-status.sh       Health status overview
+│   ├── check-prereqs.sh        Dependency validation
+│   ├── shutdown.sh             Graceful node shutdown
 │   ├── snapshot.sh             Save QCOW2 snapshots
 │   ├── restore.sh              Restore and reboot from snapshots
-│   └── reconfig.sh             Push config changes via SSH
+│   ├── reconfig.sh             Push config changes via SSH
+│   └── etcd-backup.sh          etcd snapshot and restore
 └── docs/
     ├── architecture.md         System architecture deep dive
-    └── technical-choices.md    Why NixOS, QEMU, Cilium, and everything else
+    ├── technical-choices.md    Why NixOS, QEMU, Cilium, and everything else
+    └── proxy-configuration.md  Corporate proxy setup guide
 ```
 
 ## Documentation
@@ -186,22 +193,24 @@ For deeper reading on how this all fits together:
 Run `make help` for the full list:
 
 ```
-  all               Full reset: clean + PKI + install + boot + CNI
-  download          Download the minimal NixOS base image
-  pki               Generate all PKI assets
-  install           Install NixOS on all nodes sequentially
+  check             Verify prerequisites (QEMU, kubectl, expect, firmware)
+  all               Full build: prereqs + PKI + install + boot
   up                Boot all installed nodes
-  wait              Show a live dashboard while waiting for the cluster to boot
-  network           Install Cilium CNI for pod networking
+  down              Gracefully shut down all nodes
+  wait              Live dashboard — monitor cluster readiness
+  status            Comprehensive cluster health status
+  network           Install Cilium CNI + RBAC + node labels
+  dns               Deploy CoreDNS for cluster DNS (10.32.0.10)
+  metrics           Deploy Metrics Server (kubectl top)
   smoke             Deploy nginx and verify pod networking
-  snapshot          Save cluster state for instant restore later
-  restore           Restore cluster from last snapshot (~30s vs ~15min rebuild)
-  reconfig          Push config changes to running nodes (no reinstall)
-  ssh-alpha         SSH into the Alpha control plane
-  ssh-sigma         SSH into the Sigma worker
-  ssh-gamma         SSH into the Gamma worker
-  clean             Remove generated TLS certs, configs, and staging dirs
-  clobber           Destroy everything including disk images (Caution!)
+  snapshot          Save cluster state for instant restore
+  restore           Restore from snapshot (~30s vs ~15min rebuild)
+  reconfig          Push config changes to running nodes
+  etcd-snapshot     Create etcd data backup (saved to backups/)
+  etcd-restore      Restore etcd from latest backup
+  ssh-alpha/sigma/gamma  SSH into nodes
+  clean             Remove generated artifacts
+  clobber           Destroy everything including disks
 ```
 
 ## License

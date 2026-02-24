@@ -4,13 +4,15 @@
 include cluster.env
 export
 
-.PHONY: help all download certs kubeconfigs encryption pki \
+.PHONY: help all download check \
+        certs kubeconfigs encryption pki \
         configs-alpha configs-sigma configs-gamma configs prepare \
         install-alpha install-sigma install-gamma install \
-        boot-alpha boot-sigma boot-gamma up \
-        wait network smoke \
-        ssh-alpha ssh-sigma ssh-gamma \
+        boot-alpha boot-sigma boot-gamma up down \
+        wait status network dns metrics smoke \
         snapshot restore reconfig \
+        etcd-snapshot etcd-restore \
+        ssh-alpha ssh-sigma ssh-gamma \
         clean clobber
 
 help: ## Show this help message
@@ -18,13 +20,16 @@ help: ## Show this help message
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
+	@echo "Lifecycle:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
+
+check: ## Verify prerequisites (QEMU, kubectl, expect, firmware)
+	cd bin && ./check-prereqs.sh
 
 download: ## Download the minimal NixOS base image
 	cd bin && ./download-iso.sh
 
-all: download ## Full reset: clean + PKI + install + boot + CNI
+all: check download ## Full build: prereqs + PKI + install + boot
 	cd bin && ./bootstrap-cluster.sh
 
 certs: ## Generate PKI certificates (CA, components, nodes)
@@ -73,11 +78,23 @@ boot-gamma: ## Boot the already-installed Gamma worker
 
 up: boot-alpha boot-sigma boot-gamma ## Boot all installed nodes
 
+down: ## Gracefully shut down all nodes
+	cd bin && ./shutdown.sh
+
 wait: ## Show a live dashboard while waiting for the cluster to boot
 	cd bin && ./wait-for-cluster.sh
 
-network: ## Install Cilium CNI for pod networking
+status: ## Show comprehensive cluster health status
+	cd bin && ./cluster-status.sh
+
+network: ## Install Cilium CNI + RBAC + node labels
 	export KUBECONFIG=$(PWD)/configs/admin.kubeconfig && cd bin && ./install-cilium.sh
+
+dns: ## Deploy CoreDNS for cluster DNS (10.32.0.10)
+	cd bin && ./deploy-coredns.sh
+
+metrics: ## Deploy Metrics Server (kubectl top nodes/pods)
+	cd bin && ./deploy-metrics-server.sh
 
 smoke: ## Deploy nginx and verify pod networking
 	@export KUBECONFIG=$(PWD)/configs/admin.kubeconfig && \
@@ -97,6 +114,12 @@ restore: ## Restore cluster from last snapshot (~30s vs ~15min rebuild)
 reconfig: ## Push config changes to running nodes (no reinstall)
 	cd bin && ./reconfig.sh
 
+etcd-snapshot: ## Create an etcd data snapshot (saved to backups/)
+	cd bin && ./etcd-backup.sh snapshot
+
+etcd-restore: ## Restore etcd from the latest snapshot
+	cd bin && ./etcd-backup.sh restore
+
 ssh-alpha: ## SSH into the Alpha control plane
 	ssh -p $(SSH_PORTS_alpha) -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@127.0.0.1
 
@@ -111,5 +134,5 @@ clean: ## Remove generated TLS certs, configs, and staging dirs
 	find configs -type f ! -name "nixos-base.nix" -delete 2>/dev/null || true
 
 clobber: clean ## Destroy everything including disk images (Caution!)
-	rm -f images/*.qcow2 images/*-efivars.fd
-
+	rm -f images/*.qcow2 images/*-efivars.fd images/*-install.log images/*-console.log
+	rm -rf backups

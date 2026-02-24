@@ -111,6 +111,22 @@ $FILESYSTEMS_NIX
       chmod -R 755 /var/lib/kubernetes
     fi
   '';
+$(if [ -n "${PROXY_HTTP:-}" ]; then
+cat << PROXYEOF
+
+  networking.proxy = {
+    httpProxy  = "$PROXY_HTTP";
+    httpsProxy = "${PROXY_HTTPS:-$PROXY_HTTP}";
+    noProxy    = "${PROXY_NO:-localhost,127.0.0.1}";
+  };
+
+  systemd.services.containerd.environment = {
+    HTTP_PROXY  = "$PROXY_HTTP";
+    HTTPS_PROXY = "${PROXY_HTTPS:-$PROXY_HTTP}";
+    NO_PROXY    = "${PROXY_NO:-localhost,127.0.0.1}";
+  };
+PROXYEOF
+fi)
 }
 NIXEOF
 
