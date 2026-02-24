@@ -43,7 +43,7 @@ if [[ "$NODE_NAME" == "alpha" ]]; then
   cp "$CONFIGS_DIR/kube-scheduler.kubeconfig" "$CERT_DIR/"
 fi
 
-if [[ "$NODE_NAME" == "sigma" ]] || [[ "$NODE_NAME" == "gamma" ]]; then
+if [[ "$NODE_NAME" != "alpha" ]]; then
   cp "$TLS_DIR/${NODE_NAME}.pem" "$CERT_DIR/"
   cp "$TLS_DIR/${NODE_NAME}-key.pem" "$CERT_DIR/"
   cp "$CONFIGS_DIR/${NODE_NAME}.kubeconfig" "$CERT_DIR/"

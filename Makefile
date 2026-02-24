@@ -9,9 +9,10 @@ export
         configs-alpha configs-sigma configs-gamma configs prepare \
         install-alpha install-sigma install-gamma install \
         boot-alpha boot-sigma boot-gamma up down \
-        wait status network dns metrics storage smoke test \
+        wait status network dns metrics storage dashboard monitoring smoke test \
         snapshot restore reconfig \
         etcd-snapshot etcd-restore \
+        add-worker remove-worker \
         ssh-alpha ssh-sigma ssh-gamma \
         clean clobber
 
@@ -110,6 +111,20 @@ smoke: ## Deploy nginx and verify pod networking
 
 test: ## Run the full cluster test suite
 	cd bin && ./test-cluster.sh
+
+add-worker: ## Add a new worker node (usage: make add-worker NAME=delta)
+	@[ -n "$(NAME)" ] || (echo "Usage: make add-worker NAME=<worker-name>" && exit 1)
+	cd bin && ./add-worker.sh $(NAME)
+
+remove-worker: ## Remove a worker node (usage: make remove-worker NAME=sigma)
+	@[ -n "$(NAME)" ] || (echo "Usage: make remove-worker NAME=<worker-name>" && exit 1)
+	cd bin && ./remove-worker.sh $(NAME)
+
+dashboard: ## Deploy Kubernetes Dashboard web UI
+	cd bin && ./deploy-dashboard.sh
+
+monitoring: ## Deploy Prometheus + Grafana monitoring stack
+	cd bin && ./deploy-monitoring.sh
 
 snapshot: ## Save cluster state for instant restore later
 	cd bin && ./snapshot.sh

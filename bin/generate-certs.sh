@@ -94,8 +94,13 @@ cfssl gencert \
   -profile=kubernetes \
   admin-csr.json | cfssljson -bare admin
 
-echo "Generating Kubelet Certificates (simulated for node sigma gamma)..."
-for instance in sigma gamma; do
+echo "Generating Kubelet Certificates for workers..."
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$PROJECT_DIR/cluster.env"
+
+for instance in $WORKER_NAMES; do
 cat > ${instance}-csr.json <<EOF
 {
   "CN": "system:node:${instance}",
