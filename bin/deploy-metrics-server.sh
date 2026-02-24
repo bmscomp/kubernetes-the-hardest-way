@@ -4,10 +4,12 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+source "$PROJECT_DIR/cluster.env"
+
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
 echo "Deploying Metrics Server..."
-cat <<'EOF' | kubectl apply -f -
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -105,7 +107,7 @@ spec:
       serviceAccountName: metrics-server
       containers:
       - name: metrics-server
-        image: registry.k8s.io/metrics-server/metrics-server:v0.7.2
+        image: registry.k8s.io/metrics-server/metrics-server:v${METRICS_SERVER_VERSION:-0.7.2}
         args:
         - --cert-dir=/tmp
         - --secure-port=10250

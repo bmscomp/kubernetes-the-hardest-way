@@ -37,8 +37,14 @@
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL2VReptdKUwYtCMkL7WG1kZwmIZeIU7KuB+v+NbrndL bmscomp@Saids-MacBook-Pro.local"
   ];
 
-  # Ensure the activation script directory exists
   system.activationScripts.kubernetes-certs-setup = ''
     mkdir -p /var/lib/kubernetes/pki
+  '';
+
+  services.journald.extraConfig = ''
+    SystemMaxUse=200M
+    SystemMaxFileSize=50M
+    MaxRetentionSec=1week
+    ForwardToSyslog=no
   '';
 }

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install shellcheck
+      run: sudo apt-get install -y shellcheck
+
+    - name: Lint all shell scripts
+      run: |
+        find bin/ -name "*.sh" -exec shellcheck -e SC2034,SC2086,SC2155 {} +
+
+    - name: Validate Makefile syntax
+      run: make -n help
+
+  validate-configs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check script syntax
+      run: |
+        for f in bin/*.sh; do
+          echo "Checking $f..."
+          bash -n "$f"
+        done
+
+    - name: Verify cluster.env sourcing
+      run: |
+        source cluster.env
+        [ -n "$CONTROL_PLANE_NAME" ] || exit 1
+        [ -n "$ALL_NODES" ] || exit 1
+        echo "cluster.env OK: nodes=$ALL_NODES"

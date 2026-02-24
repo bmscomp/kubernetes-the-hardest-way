@@ -58,12 +58,28 @@ if [ -n "${PROXY_HTTP:-}" ]; then
   CILIUM_PROXY_ARGS="--set httpProxy=$PROXY_HTTP --set httpsProxy=${PROXY_HTTPS:-$PROXY_HTTP} --set noProxy=${PROXY_NO:-localhost}"
 fi
 
-cilium install --version 1.16.5 --set k8sServiceHost=10.0.2.2 --set k8sServicePort=6443 $CILIUM_PROXY_ARGS
+cilium install --version "${CILIUM_VERSION:-1.16.5}" --set k8sServiceHost=10.0.2.2 --set k8sServicePort=6443 $CILIUM_PROXY_ARGS
 
 echo "Labeling worker nodes..."
 for worker in ${WORKER_NAMES:-sigma gamma}; do
   kubectl label node "$worker" node-role.kubernetes.io/worker="" --overwrite 2>/dev/null || true
 done
+
+echo "Fixing kubernetes service endpoint..."
+cat <<'EPEOF' | kubectl apply -f -
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: kubernetes
+  namespace: default
+subsets:
+- addresses:
+  - ip: 10.0.2.2
+  ports:
+  - name: https
+    port: 6443
+    protocol: TCP
+EPEOF
 
 echo ""
 echo "Cilium installation initiated. Run 'cilium status' to monitor."

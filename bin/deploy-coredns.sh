@@ -9,7 +9,7 @@ source "$PROJECT_DIR/cluster.env"
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
 echo "Deploying CoreDNS..."
-cat <<'EOF' | kubectl apply -f -
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -94,7 +94,7 @@ spec:
         operator: "Exists"
       containers:
       - name: coredns
-        image: registry.k8s.io/coredns/coredns:v1.11.3
+        image: registry.k8s.io/coredns/coredns:v${COREDNS_VERSION:-1.11.3}
         args: ["-conf", "/etc/coredns/Corefile"]
         env:
         - name: KUBERNETES_SERVICE_HOST

@@ -9,7 +9,7 @@ export
         configs-alpha configs-sigma configs-gamma configs prepare \
         install-alpha install-sigma install-gamma install \
         boot-alpha boot-sigma boot-gamma up down \
-        wait status network dns metrics smoke \
+        wait status network dns metrics storage smoke test \
         snapshot restore reconfig \
         etcd-snapshot etcd-restore \
         ssh-alpha ssh-sigma ssh-gamma \
@@ -29,7 +29,7 @@ check: ## Verify prerequisites (QEMU, kubectl, expect, firmware)
 download: ## Download the minimal NixOS base image
 	cd bin && ./download-iso.sh
 
-all: check download ## Full build: prereqs + PKI + install + boot
+all: check download ## Full build: prereqs + PKI + install + boot + network + DNS
 	cd bin && ./bootstrap-cluster.sh
 
 certs: ## Generate PKI certificates (CA, components, nodes)
@@ -87,14 +87,17 @@ wait: ## Show a live dashboard while waiting for the cluster to boot
 status: ## Show comprehensive cluster health status
 	cd bin && ./cluster-status.sh
 
-network: ## Install Cilium CNI + RBAC + node labels
+network: ## Install Cilium CNI + RBAC + node labels + endpoint fix
 	export KUBECONFIG=$(PWD)/configs/admin.kubeconfig && cd bin && ./install-cilium.sh
 
-dns: ## Deploy CoreDNS for cluster DNS (10.32.0.10)
+dns: network ## Deploy CoreDNS for cluster DNS (10.32.0.10)
 	cd bin && ./deploy-coredns.sh
 
 metrics: ## Deploy Metrics Server (kubectl top nodes/pods)
 	cd bin && ./deploy-metrics-server.sh
+
+storage: ## Deploy local-path-provisioner for PVCs
+	cd bin && ./deploy-local-storage.sh
 
 smoke: ## Deploy nginx and verify pod networking
 	@export KUBECONFIG=$(PWD)/configs/admin.kubeconfig && \
@@ -104,6 +107,9 @@ smoke: ## Deploy nginx and verify pod networking
 	kubectl rollout status deployment/nginx --timeout=120s && \
 	echo "" && echo "Smoke test passed! Nginx is running:" && \
 	kubectl get pods -l app=nginx -o wide
+
+test: ## Run the full cluster test suite
+	cd bin && ./test-cluster.sh
 
 snapshot: ## Save cluster state for instant restore later
 	cd bin && ./snapshot.sh
