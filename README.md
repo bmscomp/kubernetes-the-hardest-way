@@ -179,6 +179,7 @@ For deeper reading on how this all fits together:
 
 - **[Architecture](docs/architecture.md)** — How the cluster is assembled, the boot sequence, networking model, and PKI trust chain.
 - **[Technical Choices](docs/technical-choices.md)** — The reasoning behind NixOS, QEMU user-mode networking, Cilium, cfssl, and the rest of the stack.
+- **[Proxy Configuration](docs/proxy-configuration.md)** — Running the cluster behind a corporate HTTP proxy, including TLS interception.
 
 ## Targets Reference
 
