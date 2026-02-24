@@ -63,6 +63,9 @@ check "base64" "base64" \
 check "tar" "tar" \
   "tar --version 2>&1 | head -1 | sed 's/bsdtar //' | awk '{print \$1}'"
 
+check "helm" "helm" \
+  "helm version --short 2>/dev/null | sed 's/+.*//' "
+
 rule
 
 if [ -f "/opt/homebrew/share/qemu/edk2-aarch64-code.fd" ] || \

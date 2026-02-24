@@ -139,6 +139,19 @@ upgrade: ## Rolling NixOS upgrade (usage: make upgrade NAME=sigma or NAME=all)
 health: ## Live TUI cluster health dashboard
 	cd bin && ./cluster-health.sh
 
+helm-deploy: ## Deploy a Helm chart (usage: make helm-deploy REPO=https://... CHART=name RELEASE=name NS=namespace)
+	@[ -n "$(CHART)" ] || (echo "Usage: make helm-deploy REPO=<repo-url> CHART=<chart> RELEASE=<name> NS=<namespace> [VALUES=values.yaml]" && exit 1)
+	@echo "Deploying $(CHART) as $(or $(RELEASE),$(CHART)) into namespace $(or $(NS),default)..."
+	@helm repo add tmp-repo $(REPO) 2>/dev/null || true
+	@helm repo update tmp-repo 2>/dev/null || true
+	helm upgrade --install $(or $(RELEASE),$(CHART)) tmp-repo/$(CHART) \
+		--namespace $(or $(NS),default) --create-namespace \
+		--set global.storageClass=local-path \
+		$(if $(VALUES),--values $(VALUES),) \
+		--wait --timeout 5m
+	@echo ""
+	@echo "✔ $(CHART) deployed to namespace $(or $(NS),default)"
+
 snapshot: ## Save cluster state for instant restore later
 	cd bin && ./snapshot.sh
 
