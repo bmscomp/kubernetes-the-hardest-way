@@ -101,6 +101,12 @@ NOT_READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -cv " Ready " || t
 log_step_run "📡" "Deploying CoreDNS" \
   "$SCRIPT_DIR/deploy-coredns.sh"
 
+log_step_run "💾" "Deploying local-path StorageClass" \
+  "$SCRIPT_DIR/deploy-local-storage.sh"
+
+log_step_run "📊" "Deploying Metrics Server" \
+  "$SCRIPT_DIR/deploy-metrics-server.sh"
+
 log_summary
 
 log_info "export KUBECONFIG=$PROJECT_DIR/configs/admin.kubeconfig"
