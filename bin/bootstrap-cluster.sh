@@ -89,11 +89,14 @@ log_step_run "🌐" "Installing Cilium CNI + RBAC + node labels" \
   "$SCRIPT_DIR/install-cilium.sh"
 
 log_step "⏳" "Waiting for nodes to become Ready"
+sleep 15
 for i in $(seq 1 60); do
-  kubectl get nodes 2>/dev/null | grep -q "Ready" && break
+  NOT_READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -cv " Ready " || true)
+  [ "$NOT_READY" -eq 0 ] 2>/dev/null && break
   sleep 5
 done
-kubectl get nodes 2>/dev/null | grep -q "Ready" && log_ok || { log_fail; log_summary; exit 1; }
+NOT_READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -cv " Ready " || true)
+[ "$NOT_READY" -eq 0 ] 2>/dev/null && log_ok || { log_fail; log_summary; exit 1; }
 
 log_step_run "📡" "Deploying CoreDNS" \
   "$SCRIPT_DIR/deploy-coredns.sh"
