@@ -9,6 +9,12 @@ source "$PROJECT_DIR/lib/log.sh"
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
 log_step "💾" "Applying local-path-provisioner manifests"
+
+NODE_PATH_ENTRIES=""
+for node in $ALL_NODES; do
+  NODE_PATH_ENTRIES="${NODE_PATH_ENTRIES}{\"node\":\"${node}\",\"paths\":[\"/opt/local-path-provisioner\"]},"
+done
+
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Namespace
@@ -60,10 +66,10 @@ metadata:
 data:
   config.json: |-
     {
-      "nodePathMap":[{
-        "node":"DEFAULT_PATH_FOR_NON_LISTED_NODES",
-        "paths":["/opt/local-path-provisioner"]
-      }]
+      "nodePathMap":[
+        ${NODE_PATH_ENTRIES}
+        {"node":"DEFAULT_PATH_FOR_NON_LISTED_NODES","paths":["/opt/local-path-provisioner"]}
+      ]
     }
   helperPod.yaml: |-
     apiVersion: v1
@@ -94,7 +100,7 @@ spec:
       serviceAccountName: local-path-provisioner-service-account
       containers:
       - name: local-path-provisioner
-        image: rancher/local-path-provisioner:v${LOCAL_PATH_VERSION:-0.0.30}
+        image: rancher/local-path-provisioner:v${LOCAL_PATH_VERSION:-0.0.34}
         command:
         - local-path-provisioner
         - --debug
@@ -128,11 +134,33 @@ provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 EOF
+log_ok
 
+log_step "💾" "Creating per-node StorageClasses"
+for node in $ALL_NODES; do
+cat <<EOF | kubectl apply -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path-${node}
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+allowedTopologies:
+- matchLabelExpressions:
+  - key: kubernetes.io/hostname
+    values:
+    - ${node}
+EOF
+done
 log_ok
 
 log_step "⏳" "Waiting for provisioner rollout"
 kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
 
 log_summary
-log_info "PVCs using 'local-path' StorageClass will work"
+log_info "StorageClasses available:"
+log_info "  local-path          (default, any node)"
+for node in $ALL_NODES; do
+  log_info "  local-path-${node}    (pinned to ${node})"
+done
