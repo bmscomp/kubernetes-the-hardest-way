@@ -155,7 +155,7 @@ spec:
       serviceAccountName: prometheus
       containers:
       - name: prometheus
-        image: prom/prometheus:v2.51.2
+        image: prom/prometheus:v3.5.1
         args:
         - --config.file=/etc/prometheus/prometheus.yml
         - --storage.tsdb.path=/prometheus
@@ -301,7 +301,7 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: grafana/grafana:11.4.0
+        image: grafana/grafana:12.3.3
         ports:
         - containerPort: 3000
         env:
