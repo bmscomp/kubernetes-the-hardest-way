@@ -126,6 +126,19 @@ dashboard: ## Deploy Kubernetes Dashboard web UI
 monitoring: ## Deploy Prometheus + Grafana monitoring stack
 	cd bin && ./deploy-monitoring.sh
 
+ingress: ## Deploy Nginx Ingress Controller (NodePort 30080/30443)
+	cd bin && ./deploy-ingress.sh
+
+cert-manager: ## Deploy cert-manager with self-signed CA
+	cd bin && ./deploy-cert-manager.sh
+
+upgrade: ## Rolling NixOS upgrade (usage: make upgrade NAME=sigma or NAME=all)
+	@[ -n "$(NAME)" ] || (echo "Usage: make upgrade NAME=<node-name|all>" && exit 1)
+	cd bin && ./rolling-upgrade.sh $(NAME)
+
+health: ## Live TUI cluster health dashboard
+	cd bin && ./cluster-health.sh
+
 snapshot: ## Save cluster state for instant restore later
 	cd bin && ./snapshot.sh
 
