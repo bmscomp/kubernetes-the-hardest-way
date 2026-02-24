@@ -50,7 +50,7 @@ data:
   Corefile: |
     .:53 {
         errors
-        health { lameduck 5s }
+        health
         ready
         kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
@@ -58,7 +58,9 @@ data:
             ttl 30
         }
         prometheus :9153
-        forward . /etc/resolv.conf { max_concurrent 1000 }
+        forward . /etc/resolv.conf {
+            max_concurrent 1000
+        }
         cache 30
         loop
         reload
@@ -94,6 +96,11 @@ spec:
       - name: coredns
         image: registry.k8s.io/coredns/coredns:v1.11.3
         args: ["-conf", "/etc/coredns/Corefile"]
+        env:
+        - name: KUBERNETES_SERVICE_HOST
+          value: "10.0.2.2"
+        - name: KUBERNETES_SERVICE_PORT
+          value: "6443"
         volumeMounts:
         - name: config-volume
           mountPath: /etc/coredns
