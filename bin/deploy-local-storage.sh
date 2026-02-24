@@ -82,7 +82,7 @@ data:
     spec:
       containers:
       - name: helper-pod
-        image: busybox:1.36
+        image: busybox
         imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
