@@ -11,3 +11,6 @@ configs/encryption-config.yaml
 bin/cilium
 *.qcow2
 *.log
+logs/
+backups/
+images/*-install.log

@@ -5,12 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 source "$PROJECT_DIR/cluster.env"
+source "$PROJECT_DIR/lib/log.sh"
 
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
 DASHBOARD_VERSION="${DASHBOARD_VERSION:-7.12.0}"
 
-echo "Deploying Kubernetes Dashboard..."
+log_step "📊" "Applying Dashboard manifests"
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Namespace
@@ -224,24 +225,21 @@ spec:
     k8s-app: dashboard-metrics-scraper
 EOF
 
-echo "Waiting for Dashboard rollout..."
-kubectl -n kubernetes-dashboard rollout status deployment/kubernetes-dashboard --timeout=120s
-kubectl -n kubernetes-dashboard rollout status deployment/dashboard-metrics-scraper --timeout=60s
+log_ok
 
-echo ""
-echo "Generating access token..."
+log_step "⏳" "Waiting for Dashboard rollout"
+kubectl -n kubernetes-dashboard rollout status deployment/kubernetes-dashboard --timeout=120s >> "$_LOG_FILE" 2>&1
+kubectl -n kubernetes-dashboard rollout status deployment/dashboard-metrics-scraper --timeout=60s >> "$_LOG_FILE" 2>&1
+log_ok
+
+log_step "🔑" "Generating access token"
 TOKEN=$(kubectl -n kubernetes-dashboard get secret dashboard-admin-token -o jsonpath='{.data.token}' | base64 --decode)
+log_ok
 
-echo ""
-echo "======================================================================="
-echo -e " \e[32m✔ Kubernetes Dashboard deployed!\e[0m"
-echo "======================================================================="
-echo ""
-echo "  Access the dashboard:"
-echo "    kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard 8443:443"
-echo "    Then open: https://localhost:8443"
-echo ""
-echo "  Login token (copied to clipboard if pbcopy available):"
-echo "  $TOKEN"
-echo ""
-echo "$TOKEN" | pbcopy 2>/dev/null && echo "  (Token copied to clipboard)" || true
+log_summary
+log_info "kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard 8443:443"
+log_info "Then open: https://localhost:8443"
+echo "" >&2
+echo "  Token: $TOKEN" >&2
+echo "" >&2
+echo "$TOKEN" | pbcopy 2>/dev/null && log_info "Token copied to clipboard" || true

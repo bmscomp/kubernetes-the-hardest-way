@@ -3,10 +3,12 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$PROJECT_DIR/cluster.env"
+source "$PROJECT_DIR/lib/log.sh"
 
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
-echo "Deploying local-path-provisioner..."
+log_step "💾" "Applying local-path-provisioner manifests"
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Namespace
@@ -127,9 +129,10 @@ volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 EOF
 
-echo "Waiting for local-path-provisioner..."
-kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=120s
+log_ok
 
-echo ""
-echo "Local storage provisioner deployed. PVCs using 'local-path' StorageClass will work."
-echo "  kubectl get storageclass"
+log_step "⏳" "Waiting for provisioner rollout"
+kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
+
+log_summary
+log_info "PVCs using 'local-path' StorageClass will work"

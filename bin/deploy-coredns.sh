@@ -5,10 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 source "$PROJECT_DIR/cluster.env"
+source "$PROJECT_DIR/lib/log.sh"
 
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
-echo "Deploying CoreDNS..."
+log_step "📡" "Applying CoreDNS manifests"
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
@@ -160,13 +161,14 @@ spec:
     protocol: TCP
 EOF
 
-echo "Waiting for CoreDNS rollout..."
-kubectl -n kube-system rollout status deployment/coredns --timeout=120s
+log_ok
 
-echo ""
-echo "CoreDNS deployed. Testing DNS resolution..."
-kubectl run dns-test --rm -it --restart=Never --image=busybox:1.36 -- \
-  nslookup kubernetes.default.svc.cluster.local 2>&1 | tail -5 || true
+log_step "⏳" "Waiting for CoreDNS rollout"
+kubectl -n kube-system rollout status deployment/coredns --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
 
-echo ""
-echo "CoreDNS is running at 10.32.0.10"
+log_step "🧪" "Testing DNS resolution"
+kubectl run dns-test --rm -i --restart=Never --image=busybox:1.36 -- \
+  nslookup kubernetes.default.svc.cluster.local >> "$_LOG_FILE" 2>&1 && log_ok || { log_warn "DNS test skipped"; }
+
+log_summary
+log_info "CoreDNS is running at 10.32.0.10"

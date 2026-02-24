@@ -5,10 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 source "$PROJECT_DIR/cluster.env"
+source "$PROJECT_DIR/lib/log.sh"
 
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
-echo "Deploying Prometheus + Grafana monitoring stack..."
+log_step "📈" "Applying Prometheus + Grafana manifests"
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Namespace
@@ -344,24 +345,15 @@ spec:
     app: grafana
 EOF
 
-echo "Waiting for Prometheus rollout..."
-kubectl -n monitoring rollout status deployment/prometheus --timeout=120s
+log_ok
 
-echo "Waiting for Grafana rollout..."
-kubectl -n monitoring rollout status deployment/grafana --timeout=120s
+log_step "⏳" "Waiting for Prometheus rollout"
+kubectl -n monitoring rollout status deployment/prometheus --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
 
-echo ""
-echo "======================================================================="
-echo -e " \e[32m✔ Monitoring stack deployed!\e[0m"
-echo "======================================================================="
-echo ""
-echo "  Prometheus:"
-echo "    kubectl -n monitoring port-forward svc/prometheus 9090:9090"
-echo "    Then open: http://localhost:9090"
-echo ""
-echo "  Grafana:"
-echo "    kubectl -n monitoring port-forward svc/grafana 3000:3000"
-echo "    Then open: http://localhost:3000"
-echo "    Login: admin / kubernetes"
-echo ""
-echo "  Pre-installed dashboard: Kubernetes Cluster Overview"
+log_step "⏳" "Waiting for Grafana rollout"
+kubectl -n monitoring rollout status deployment/grafana --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
+
+log_summary
+log_info "Prometheus: kubectl -n monitoring port-forward svc/prometheus 9090:9090"
+log_info "Grafana:    kubectl -n monitoring port-forward svc/grafana 3000:3000"
+log_info "Login: admin / kubernetes"

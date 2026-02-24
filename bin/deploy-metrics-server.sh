@@ -5,10 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 source "$PROJECT_DIR/cluster.env"
+source "$PROJECT_DIR/lib/log.sh"
 
 export KUBECONFIG="$PROJECT_DIR/configs/admin.kubeconfig"
 
-echo "Deploying Metrics Server..."
+log_step "📊" "Applying Metrics Server manifests"
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
@@ -155,8 +156,10 @@ spec:
     k8s-app: metrics-server
 EOF
 
-echo "Waiting for Metrics Server rollout..."
-kubectl -n kube-system rollout status deployment/metrics-server --timeout=120s
+log_ok
 
-echo ""
-echo "Metrics Server deployed. Wait ~60s, then: kubectl top nodes"
+log_step "⏳" "Waiting for Metrics Server rollout"
+kubectl -n kube-system rollout status deployment/metrics-server --timeout=120s >> "$_LOG_FILE" 2>&1 && log_ok || { log_fail; exit 1; }
+
+log_summary
+log_info "Run: kubectl top nodes"

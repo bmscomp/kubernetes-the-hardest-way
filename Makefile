@@ -156,4 +156,7 @@ clean: ## Remove generated TLS certs, configs, and staging dirs
 
 clobber: clean ## Destroy everything including disk images (Caution!)
 	rm -f images/*.qcow2 images/*-efivars.fd images/*-install.log images/*-console.log
-	rm -rf backups
+	rm -rf backups logs
+
+logs: ## Tail the latest build log
+	@ls -t logs/*.log 2>/dev/null | head -1 | xargs tail -f 2>/dev/null || echo "No logs found. Run 'make all' first."
