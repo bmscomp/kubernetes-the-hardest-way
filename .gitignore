@@ -1,0 +1,13 @@
+images/*.qcow2
+images/*-efivars.fd
+images/*.iso
+images/*-console.log
+images/efivars-snapshot-*
+tls/
+cloud-init/
+configs/*.kubeconfig
+configs/encryption-config.yaml
+*.tar.gz
+bin/cilium
+*.qcow2
+*.log
