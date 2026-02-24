@@ -42,20 +42,21 @@ _log_spinner() {
 
 _log_stop_spinner() {
   if [ -n "$_LOG_SPINNER_PID" ]; then
-    kill "$_LOG_SPINNER_PID" 2>/dev/null
-    wait "$_LOG_SPINNER_PID" 2>/dev/null
+    kill "$_LOG_SPINNER_PID" 2>/dev/null || true
+    wait "$_LOG_SPINNER_PID" 2>/dev/null || true
     _LOG_SPINNER_PID=""
   fi
 }
 
 log_header() {
   local title="$1"
-  echo ""
-  echo "  $title"
-  echo ""
+  echo "" >&2
+  echo "  $title" >&2
+  echo "" >&2
 }
 
 log_step() {
+  _log_stop_spinner
   local emoji="$1"
   local msg="$2"
   _LOG_STEP_EMOJI="$emoji"
@@ -65,7 +66,7 @@ log_step() {
   if [ "$_LOG_IS_TTY" = true ] && [ "${LOG_VERBOSE:-}" != "1" ]; then
     _log_spinner &
     _LOG_SPINNER_PID=$!
-    disown "$_LOG_SPINNER_PID" 2>/dev/null
+    disown "$_LOG_SPINNER_PID" 2>/dev/null || true
   else
     printf "  %s  %-42s " "$emoji" "$msg" >&2
   fi
@@ -77,14 +78,14 @@ log_ok() {
   local time_str=""
   [ "$elapsed" -ge 2 ] && time_str=" $(_log_format_time $elapsed)"
   printf "\r  %s  %-42s \e[32m✔\e[0m%s\n" "$_LOG_STEP_EMOJI" "$_LOG_STEP_MSG" "$time_str" >&2
-  ((_LOG_PASS++))
+  _LOG_PASS=$((_LOG_PASS + 1))
 }
 
 log_fail() {
   _log_stop_spinner
   local elapsed=$(( $(date +%s) - _LOG_STEP_START ))
   printf "\r  %s  %-42s \e[31m✘\e[0m\n" "$_LOG_STEP_EMOJI" "$_LOG_STEP_MSG" >&2
-  ((_LOG_FAIL++))
+  _LOG_FAIL=$((_LOG_FAIL + 1))
 
   if [ -s "$_LOG_FILE" ]; then
     echo -e "     \e[90m╰─ Last output:\e[0m" >&2
@@ -140,4 +141,4 @@ log_summary() {
   echo "" >&2
 }
 
-trap _log_stop_spinner EXIT
+trap '_log_stop_spinner' EXIT
