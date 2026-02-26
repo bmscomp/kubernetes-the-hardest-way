@@ -74,6 +74,26 @@ data:
         {"node":"DEFAULT_PATH_FOR_NON_LISTED_NODES","paths":["/opt/local-path-provisioner"]}
       ]
     }
+  setup: |-
+    #!/bin/sh
+    while getopts "m:s:p:" opt; do
+      case $opt in
+        p) absolutePath=$OPTARG ;;
+        s) sizeInBytes=$OPTARG ;;
+        m) volMode=$OPTARG ;;
+      esac
+    done
+    mkdir -m 0777 -p "$absolutePath"
+  teardown: |-
+    #!/bin/sh
+    while getopts "m:s:p:" opt; do
+      case $opt in
+        p) absolutePath=$OPTARG ;;
+        s) sizeInBytes=$OPTARG ;;
+        m) volMode=$OPTARG ;;
+      esac
+    done
+    rm -rf "$absolutePath"
   helperPod.yaml: |-
     apiVersion: v1
     kind: Pod
